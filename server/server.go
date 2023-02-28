@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"net/http"
+	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var UrlUsdBrl string = "https://economia.awesomeapi.com.br/json/last/USD-BRL"
@@ -34,6 +39,7 @@ func main() {
 	})
 	mux.HandleFunc("/cotacao", QuotationHandler)
 	http.ListenAndServe(":8080", mux)
+
 }
 
 func QuotationHandler(w http.ResponseWriter, r *http.Request) {
@@ -41,11 +47,18 @@ func QuotationHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	ctx := r.Context()
-
-	quotation, err := SearchQuotation(ctx)
+	quotation, err := SearchQuotation(r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(err)
+		return
+	}
+
+	// insert into database
+
+	err = insertCotacao(r, quotation)
+	if err != nil {
+		panic(err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -54,18 +67,27 @@ func QuotationHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(quotation.Bid)
 }
 
-func SearchQuotation(ctx context.Context) (*Quotation, error) {
-	res, err := http.Get(UrlUsdBrl)
+func SearchQuotation(r *http.Request) (*Quotation, error) {
+	ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, UrlUsdBrl, nil)
 	if err != nil {
+		return nil, err
+	}
+	httpClient := http.Client{}
+
+	res, err := httpClient.Do(req)
+	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 	defer res.Body.Close()
 
-	resBody, err := ioutil.ReadAll(res.Body)
+	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
-
 	var quotation QuotationWrapper
 	err = json.Unmarshal(resBody, &quotation)
 	if err != nil {
@@ -73,4 +95,40 @@ func SearchQuotation(ctx context.Context) (*Quotation, error) {
 	}
 
 	return &quotation.USDBRL, err
+}
+
+func insertCotacao(r *http.Request, quotation *Quotation) error {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Millisecond)
+	defer cancel()
+
+	db, err := sql.Open("sqlite3", "./database.db")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	query := "insert into cotacao(code, codein, name, high, low, varBid, pctChange, bid, ask, timestamp, createDate) " +
+		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	statement, err := db.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer statement.Close()
+	_, err = statement.ExecContext(ctx, quotation.Code,
+		quotation.Codein,
+		quotation.Name,
+		quotation.High,
+		quotation.Low,
+		quotation.VarBid,
+		quotation.PctChange,
+		quotation.Bid,
+		quotation.Ask,
+		quotation.Timestamp,
+		quotation.CreateDate)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

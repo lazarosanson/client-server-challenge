@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -26,5 +27,33 @@ func main() {
 	}
 
 	defer res.Body.Close()
-	io.Copy(os.Stdout, res.Body)
+	if res.StatusCode == http.StatusOK {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		cotacao := string(body)
+		SaveData(cotacao)
+	} else {
+		io.Copy(os.Stdout, res.Body)
+	}
+
+}
+
+func SaveData(cotacao string) error {
+	filename := "cotacao.txt"
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0644)
+
+	if err != nil {
+		return err
+	}
+	_, err = file.Write([]byte(fmt.Sprintf("Dólar: %s", cotacao)))
+	if err != nil {
+		return err
+	}
+
+	file.Close()
+
+	return nil
 }
