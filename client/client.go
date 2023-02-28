@@ -33,16 +33,20 @@ func main() {
 			panic(err)
 		}
 
+		filename := "cotacao.txt"
+		createFile(filename)
 		cotacao := string(body)
-		SaveData(cotacao)
+		err = saveData(filename, cotacao)
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		io.Copy(os.Stdout, res.Body)
 	}
 
 }
 
-func SaveData(cotacao string) error {
-	filename := "cotacao.txt"
+func saveData(filename string, cotacao string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0644)
 
 	if err != nil {
@@ -56,4 +60,17 @@ func SaveData(cotacao string) error {
 	file.Close()
 
 	return nil
+}
+
+func createFile(filename string) {
+	_, err := os.Stat(filename)
+	if err != nil && os.IsNotExist(err) {
+		file, err := os.Create(filename)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+	} else if err != nil {
+		panic(err)
+	}
 }
