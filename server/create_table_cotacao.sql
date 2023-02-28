@@ -1,0 +1,16 @@
+-- SQLite
+CREATE TABLE IF NOT EXISTS cotacao(
+    code VARCHAR(255) NOT NULL,
+    codein VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    high VARCHAR(255) NOT NULL,
+    low VARCHAR(255) NOT NULL,
+    varBid VARCHAR(255) NOT NULL,
+    pctChange VARCHAR(255) NOT NULL,
+    bid VARCHAR(255) NOT NULL,
+    ask VARCHAR(255) NOT NULL,
+    timestamp VARCHAR(255) NOT NULL,
+    createDate VARCHAR(255) NOT NULL
+);
+
+-- DROP TABLE cotacao
